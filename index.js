@@ -11,10 +11,34 @@ require('dotenv').config();
 const app = express();
 const server = http.createServer(app);
 
+// Validate MongoDB URI
+const validateMongoDBUri = (uri) => {
+    if (!uri) {
+        console.error('MONGODB_URI is not defined in environment variables');
+        return false;
+    }
+    
+    // Check if it starts with mongodb:// or mongodb+srv://
+    if (!uri.startsWith('mongodb://') && !uri.startsWith('mongodb+srv://')) {
+        console.error('Invalid MongoDB URI: Must start with mongodb:// or mongodb+srv://');
+        return false;
+    }
+    
+    return true;
+};
+
+// Log environment variables (without sensitive values)
+console.log('Environment:', {
+    NODE_ENV: process.env.NODE_ENV,
+    PORT: process.env.PORT,
+    MONGODB_URI: process.env.MONGODB_URI ? 'Set (value hidden)' : 'Not set',
+    CLIENT_URL: process.env.CLIENT_URL
+});
+
 // Configure CORS for both Express and Socket.IO
 const corsOptions = {
     origin: [
-        "http://localhost:5173", 
+        "https://web-production-22041.up.railway.app", 
         "http://localhost:3000",
         process.env.CLIENT_URL // Production frontend URL
     ].filter(Boolean),
@@ -25,23 +49,48 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 
-// Connect to MongoDB first
-mongoose.connect(process.env.MONGODB_URI)
-    .then(() => console.log('Connected to MongoDB'))
-    .catch(err => console.error('MongoDB connection error:', err));
+// Validate MongoDB URI before connecting
+const isValidMongoUri = validateMongoDBUri(process.env.MONGODB_URI);
 
-// Session configuration with MongoDB as session store
+// Connect to MongoDB if URI is valid
+if (isValidMongoUri) {
+    mongoose.connect(process.env.MONGODB_URI)
+        .then(() => console.log('Connected to MongoDB'))
+        .catch(err => console.error('MongoDB connection error:', err));
+} else {
+    console.error('Cannot connect to MongoDB: Invalid URI');
+}
+
+// Session configuration
+// Try different approaches to create the session store
+let sessionStore;
+try {
+    // First approach - direct MongoStore with explicit URL
+    const mongoUrl = process.env.MONGODB_URI;
+    
+    if (!validateMongoDBUri(mongoUrl)) {
+        throw new Error('Invalid MongoDB URI format');
+    }
+    
+    sessionStore = MongoStore.create({
+        mongoUrl: mongoUrl,
+        ttl: 24 * 60 * 60 // 1 day in seconds
+    });
+    
+    console.log('Created MongoStore with mongoUrl');
+} catch (error) {
+    console.error('Failed to create MongoStore:', error.message);
+    
+    // Fallback to memory store with warning
+    console.warn('WARNING: Using MemoryStore in production. This is not recommended.');
+    sessionStore = undefined; // Will default to MemoryStore
+}
+
 app.use(session({
     secret: process.env.SESSION_SECRET || 'your-secret-key',
     resave: false,
     saveUninitialized: false,
-    store: MongoStore.create({ 
-        mongoUrl: process.env.MONGODB_URI,
-        collectionName: 'sessions',
-        stringify: false,
-        autoRemove: 'interval',
-        autoRemoveInterval: 60 // 1 hour
-    }),
+    store: sessionStore,
     cookie: {
         secure: process.env.NODE_ENV === 'production',
         maxAge: 24 * 60 * 60 * 1000 // 24 hours
