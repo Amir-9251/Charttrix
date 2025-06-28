@@ -130,6 +130,29 @@ app.get('/test-cors', (req, res) => {
     res.json({ message: 'CORS is working correctly!' });
 });
 
+// Add a health check route
+app.get('/health', (req, res) => {
+    res.status(200).json({ status: 'ok' });
+});
+
+// Error handling for invalid URLs
+app.use((req, res, next) => {
+    const err = new Error(`Not Found - ${req.originalUrl}`);
+    err.status = 404;
+    next(err);
+});
+
+// Global error handler
+app.use((err, req, res, next) => {
+    console.error('Error:', err);
+    res.status(err.status || 500).json({
+        error: {
+            message: err.message,
+            status: err.status || 500
+        }
+    });
+});
+
 const io = new Server(server, {
     cors: corsOptions
 });
