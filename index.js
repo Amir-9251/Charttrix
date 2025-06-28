@@ -25,14 +25,22 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 
+// Connect to MongoDB first
+mongoose.connect(process.env.MONGODB_URI)
+    .then(() => console.log('Connected to MongoDB'))
+    .catch(err => console.error('MongoDB connection error:', err));
+
 // Session configuration with MongoDB as session store
 app.use(session({
     secret: process.env.SESSION_SECRET || 'your-secret-key',
     resave: false,
     saveUninitialized: false,
-    store: MongoStore.create({
+    store: MongoStore.create({ 
         mongoUrl: process.env.MONGODB_URI,
-        ttl: 24 * 60 * 60 // 1 day
+        collectionName: 'sessions',
+        stringify: false,
+        autoRemove: 'interval',
+        autoRemoveInterval: 60 // 1 hour
     }),
     cookie: {
         secure: process.env.NODE_ENV === 'production',
@@ -43,11 +51,6 @@ app.use(session({
 // Initialize Passport
 app.use(passport.initialize());
 app.use(passport.session());
-
-// Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI)
-    .then(() => console.log('Connected to MongoDB'))
-    .catch(err => console.error('MongoDB connection error:', err));
 
 // Import and use auth routes
 const authRoutes = require('./routes/auth');
