@@ -47,24 +47,13 @@ const corsOptions = {
     ].filter(Boolean),
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     credentials: true,
-    allowedHeaders: ["Content-Type", "Authorization"]
 };
 
 // Apply CORS middleware
 app.use(cors(corsOptions));
 
 // Debug route to check CORS
-app.options('*', cors(corsOptions)); // Enable pre-flight for all routes
 
-// Debug middleware to log CORS headers
-app.use((req, res, next) => {
-    console.log(`Request from origin: ${req.headers.origin}`);
-    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-    next();
-});
 
 app.use(express.json());
 
@@ -113,7 +102,6 @@ app.use(session({
     cookie: {
         secure: process.env.NODE_ENV === 'production',
         maxAge: 24 * 60 * 60 * 1000, // 24 hours
-        sameSite: 'none'
     }
 }));
 
@@ -126,32 +114,9 @@ const authRoutes = require('./routes/auth');
 app.use('/auth', authRoutes);
 
 // Add a simple test route to verify CORS
-app.get('/test-cors', (req, res) => {
-    res.json({ message: 'CORS is working correctly!' });
-});
 
-// Add a health check route
-app.get('/health', (req, res) => {
-    res.status(200).json({ status: 'ok' });
-});
 
-// Error handling for invalid URLs
-app.use((req, res, next) => {
-    const err = new Error(`Not Found - ${req.originalUrl}`);
-    err.status = 404;
-    next(err);
-});
 
-// Global error handler
-app.use((err, req, res, next) => {
-    console.error('Error:', err);
-    res.status(err.status || 500).json({
-        error: {
-            message: err.message,
-            status: err.status || 500
-        }
-    });
-});
 
 const io = new Server(server, {
     cors: corsOptions
