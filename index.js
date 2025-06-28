@@ -38,15 +38,34 @@ console.log('Environment:', {
 // Configure CORS for both Express and Socket.IO
 const corsOptions = {
     origin: [
-        "https://web-production-22041.up.railway.app", 
+        "https://web-production-22041.up.railway.app",
         "http://localhost:3000",
+        "http://localhost:3001",
+        "http://localhost:5173",
+        "http://localhost:5174",
         process.env.CLIENT_URL // Production frontend URL
     ].filter(Boolean),
-    methods: ["GET", "POST"],
-    credentials: true
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization"]
 };
 
+// Apply CORS middleware
 app.use(cors(corsOptions));
+
+// Debug route to check CORS
+app.options('*', cors(corsOptions)); // Enable pre-flight for all routes
+
+// Debug middleware to log CORS headers
+app.use((req, res, next) => {
+    console.log(`Request from origin: ${req.headers.origin}`);
+    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    next();
+});
+
 app.use(express.json());
 
 // Validate MongoDB URI before connecting
@@ -93,7 +112,8 @@ app.use(session({
     store: sessionStore,
     cookie: {
         secure: process.env.NODE_ENV === 'production',
-        maxAge: 24 * 60 * 60 * 1000 // 24 hours
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+        sameSite: 'none'
     }
 }));
 
@@ -104,6 +124,11 @@ app.use(passport.session());
 // Import and use auth routes
 const authRoutes = require('./routes/auth');
 app.use('/auth', authRoutes);
+
+// Add a simple test route to verify CORS
+app.get('/test-cors', (req, res) => {
+    res.json({ message: 'CORS is working correctly!' });
+});
 
 const io = new Server(server, {
     cors: corsOptions
